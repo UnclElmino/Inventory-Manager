@@ -20,7 +20,8 @@ module.exports = (sequelize, DataTypes) => {
     inventory_id: DataTypes.INTEGER,
     custom_id: DataTypes.STRING,
     version: DataTypes.INTEGER,
-    created_by: DataTypes.INTEGER
+    created_by: DataTypes.INTEGER,
+    quantity: DataTypes.INTEGER
   }, {
     sequelize,
     modelName: 'Item',

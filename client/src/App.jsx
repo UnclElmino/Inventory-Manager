@@ -1,19 +1,31 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-
-import ApiStatus from './components/ApiStatus';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import AuthSuccess from './pages/AuthSuccess';
+import Home from './pages/Home';
+import Inventories from './pages/Inventories';
+import InventoryDetail from './pages/InventoryDetail';
+import AuthButton from './components/AuthButton';
+import AdminPage from './pages/AdminPage';
 
 export default function App() {
   return (
-    <div className="container py-3">
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h1 className="h4 m-0">Inventory App</h1>
-        <ApiStatus />
-      </div>
+    <BrowserRouter>
+      <nav className="navbar bg-body-tertiary">
+        <div className="container">
+          <Link className="navbar-brand" to="/">Inventory</Link>
+          <div className="d-flex gap-3">
+            <Link to="/inventories" className="nav-link">Inventories</Link>
+            <AuthButton />
+          </div>
+        </div>
+      </nav>
 
-      <p>Welcome! This is your React + Bootstrap frontend.</p>
-    </div>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/inventories" element={<Inventories />} />
+        <Route path="/inventories/:id" element={<InventoryDetail />} />
+        <Route path="/auth/success" element={<AuthSuccess />} />
+        <Route path="/admin" element={<AdminPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

@@ -19,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
       this.belongsToMany(models.Tag, { through: models.InventoryTag, foreignKey: 'inventory_id' });
 
       this.belongsToMany(models.User, {
-        through: models.InventoryAccess,
+        through: models.InventoryWriter,
         as: 'writers',
         foreignKey: 'inventory_id',
         otherKey: 'user_id'

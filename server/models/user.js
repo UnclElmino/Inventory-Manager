@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
       this.hasMany(models.Inventory, { foreignKey: 'owner_id' });
 
       this.belongsToMany(models.Inventory, {
-        through: models.InventoryAccess,
+        through: models.InventoryWriter,
         as: 'writableInventories',
         foreignKey: 'user_id',
         otherKey: 'inventory_id'
