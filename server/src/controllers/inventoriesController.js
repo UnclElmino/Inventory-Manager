@@ -247,6 +247,7 @@ exports.stats = async (req, res, next) => {
 exports.getWriters = async (req, res, next) => {
   try {
     const inventoryId = Number(req.params.id);
+
     const inv = await Inventory.findByPk(inventoryId, {
       include: [{
         model: User,
@@ -256,8 +257,36 @@ exports.getWriters = async (req, res, next) => {
       }]
     });
     if (!inv) return res.status(404).json({ error: 'Inventory not found' });
-    res.json(inv.writers);
-  } catch (err) { next(err); }
+
+    // load owner
+    const owner = await User.findByPk(inv.owner_id, {
+      attributes: ['id','name','email','avatar_url']
+    });
+
+    const writers = inv.writers || [];
+
+    // send owner first, mark role
+    const data = [];
+    if (owner) {
+      data.push({
+        ...owner.toJSON(),
+        role: 'owner'
+      });
+    }
+    writers.forEach(w => {
+      // avoid duplicating owner if owner is also in writers
+      if (!owner || owner.id !== w.id) {
+        data.push({
+          ...w.toJSON(),
+          role: 'writer'
+        });
+      }
+    });
+
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
 };
 
 // POST /api/inventories/:id/writers  body: { user_id }

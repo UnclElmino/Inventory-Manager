@@ -1,9 +1,11 @@
 const router = require('express').Router();
 const c = require('../controllers/itemsController');
+const { requireWriteAccess } = require('../middlewares/inventoryAuth');
+
 
 // inventory-scoped
 router.get('/inventory/:inventoryId', c.listByInventory);
-router.post('/inventory/:inventoryId', c.create);
+router.post('/inventory/:inventoryId', requireWriteAccess, c.create);
 
 // item-scoped
 router.get('/:id', c.getOne);

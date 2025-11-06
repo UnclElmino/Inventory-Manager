@@ -86,11 +86,20 @@ export default function AccessPanel({ inventoryId }) {
       <h6>Current writers</h6>
       <ul className="list-group">
         {writers.map(w => (
-          <li key={w.id} className="list-group-item d-flex justify-content-between align-items-center">
+          <li
+            key={w.id}
+            className="list-group-item d-flex justify-content-between align-items-center"
+          >
             <span>
-              {w.name} <span className="text-muted small ms-2">{w.email}</span>
+              {w.name || 'User ' + w.id}
+              <span className="text-muted small ms-2">{w.email}</span>
+              {w.role === 'owner' && (
+                <span className="badge text-bg-primary ms-2">Owner</span>
+              )}
             </span>
-            {!isSelf(w) && (
+
+            {/* only show remove if NOT owner */}
+            {w.role !== 'owner' && (
               <button
                 className="btn btn-sm btn-outline-danger"
                 onClick={() => remove(w.id)}
