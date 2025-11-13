@@ -10,7 +10,11 @@ async function loadInventory(inventoryId) {
 exports.requireOwnerOrAdmin = async (req, res, next) => {
   try {
     const inventoryId = Number(req.params.id);
-    const userId = req.user?.id || req.body.user_id; // fallback for now
+    const userId =
+      req.user?.id ??
+      req.body.user_id ??
+      req.body.created_by ??
+      null;
 
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
@@ -33,7 +37,11 @@ exports.requireWriteAccess = async (req, res, next) => {
   try {
     // some routes use :id, some use :inventoryId
     const inventoryId = Number(req.params.id || req.params.inventoryId);
-    const userId = req.user?.id || req.body.user_id;
+    const userId =
+      req.user?.id ??
+      req.body.user_id ??
+      req.body.created_by ??
+      null;
 
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 

@@ -9,6 +9,7 @@ import { useToast } from '../context/ToastContext';
 import Discussion from '../components/Discussion';
 import Stats from '../components/Stats';
 import AccessPanel from '../components/AccessPanel';
+import FieldsPanel from '../components/FieldsPanel';
 
 
 
@@ -50,24 +51,34 @@ export default function InventoryDetail() {
     }, [loadItems]);
 
     // create item
-    const onCreate = async ({ custom_id, quantity }) => {
+    // create item
+    const onCreate = async ({ custom_id, quantity, field_values }) => {
         if (!user) {
             push('Sign in first', 'warning');
             return;
         }
         try {
-            await createItem(invId, { custom_id, created_by: user.id, quantity });
+            await createItem(invId, {
+                custom_id,
+                created_by: user.id,
+                user_id: user.id,        // <- helps auth middleware
+                quantity,
+                field_values,            // <- pass custom field values
+            });
             setShowNew(false);
             setPage(1);
-            loadItems();
+            loadItems();               // <- correct function
         } catch (e) {
             if (e?.response?.status === 409) {
                 push('Custom ID must be unique in this inventory', 'danger');
+            } else if (e?.response?.status === 401) {
+                push('Not authorized to add items to this inventory', 'danger');
             } else {
                 push('Failed to create item', 'danger');
             }
         }
     };
+
 
     // rename with optimistic locking
     const onInlineRename = async (itemId) => {
@@ -118,7 +129,24 @@ export default function InventoryDetail() {
                         </button>
                     </div>
                 </td>
-
+                <td>
+                    {it.field_values?.length
+                        ? it.field_values.map(v => (
+                            <div key={v.field_id}>
+                                <strong>{v.field?.name || 'Field'}:</strong>{' '}
+                                {v.value_text ??
+                                    v.value_number ??
+                                    (v.value_bool === true
+                                        ? 'Yes'
+                                        : v.value_bool === false
+                                            ? 'No'
+                                            : '') ??
+                                    v.value_link ??
+                                    ''}
+                            </div>
+                        ))
+                        : <span className="text-muted small">—</span>}
+                </td>
                 <td>
                     <div className="d-flex gap-2 align-items-center">
                         <button
@@ -222,6 +250,7 @@ export default function InventoryDetail() {
                                         <th>ID</th>
                                         <th>Custom ID</th>
                                         <th>Quantity</th>
+                                        <th>Custom Fields</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -229,15 +258,19 @@ export default function InventoryDetail() {
                             </table>
                         </div>
                     )}
-
-                    {showNew && <ItemFormModal onSubmit={onCreate} onClose={() => setShowNew(false)} />}
-                </>
+                    {showNew && (
+                        <ItemFormModal
+                            inventoryId={invId}
+                            onSubmit={onCreate}                 // <- use the function above
+                            onClose={() => setShowNew(false)}
+                        />
+                    )}                </>
             )}
 
             {tab === 'discussion' && <Discussion inventoryId={invId} />}
             {tab === 'stats' && <Stats inventoryId={invId} />}
             {tab === 'access' && <AccessPanel inventoryId={invId} />}
-            {tab === 'fields' && <div className="text-muted">Fields tab to be implemented.</div>}
+            {tab === 'fields' && <FieldsPanel inventoryId={invId} />}
         </div>
     );
 }

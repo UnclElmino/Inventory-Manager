@@ -19,4 +19,9 @@ router.delete('/:id/like', c.unlike);
 router.patch('/:id/quantity', c.removeQuantity);
 router.patch('/:id/increase', c.increaseQuantity);
 
+// set/get item field values
+router.get('/:id/fields', c.getItemFields);
+router.patch('/:id/fields', requireWriteAccess, c.setItemFields);
+
+
 module.exports = router;

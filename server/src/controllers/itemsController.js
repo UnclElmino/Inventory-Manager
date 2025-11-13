@@ -1,13 +1,13 @@
-const { Sequelize } = require('sequelize');
+const { Op } = require('sequelize');
 const {
   Item,
   Inventory,
   Like,
-  User,
-  sequelize
+  sequelize,
+  ItemFieldValue,
+  CustomField
 } = require('../../models');
 
-const { Op } = Sequelize;
 
 // GET /api/inventories/:inventoryId/items?search=&page=&pageSize=
 exports.listByInventory = async (req, res, next) => {
@@ -22,10 +22,24 @@ exports.listByInventory = async (req, res, next) => {
 
     const { rows, count } = await Item.findAndCountAll({
       where,
+      include: [
+        {
+          model: ItemFieldValue,
+          as: 'field_values',
+          include: [
+            {
+              model: CustomField,
+              as: 'field',
+              attributes: ['id', 'name', 'type'],
+            },
+          ],
+        },
+      ],
       order: [['createdAt', 'DESC']],
       limit: pageSize,
-      offset: (page - 1) * pageSize
+      offset: (page - 1) * pageSize,
     });
+
 
     res.json({ data: rows, page, pageSize, total: count });
   } catch (err) { next(err); }
@@ -54,7 +68,7 @@ exports.create = async (req, res, next) => {
   const t = await sequelize.transaction();
   try {
     const inventoryId = Number(req.params.inventoryId);
-    const { custom_id, created_by, quantity } = req.body;
+    const { custom_id, created_by, quantity, field_values } = req.body;
 
     if (!custom_id || !created_by) {
       return res.status(400).json({ error: 'custom_id and created_by are required' });
@@ -76,15 +90,20 @@ exports.create = async (req, res, next) => {
       quantity: quantity ? Number(quantity) : 1
     }, { transaction: t });
 
+    await upsertItemFieldValues(item.id, inventoryId, field_values, t);
     await t.commit();
     res.status(201).json(item);
   } catch (err) {
     await t.rollback();
-    // Handle composite unique (inventory_id, custom_id)
+
+    console.error('Create item failed:', err); // <-- add this
+
     if (err.name === 'SequelizeUniqueConstraintError') {
-      return res.status(409).json({ error: 'custom_id must be unique within this inventory' });
+      return res
+        .status(409)
+        .json({ error: 'custom_id must be unique within this inventory' });
     }
-    next(err);
+    return next(err);
   }
 };
 
@@ -238,4 +257,106 @@ exports.increaseQuantity = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+// safer version of upsertItemFieldValues
+async function upsertItemFieldValues(itemId, inventoryId, values = [], txn = null) {
+  if (!Array.isArray(values) || !values.length) return;
+
+  // only fields belonging to this inventory
+  const fields = await CustomField.findAll({
+    where: { inventory_id: inventoryId },
+    transaction: txn,
+  });
+  const fieldMap = new Map(fields.map(f => [Number(f.id), f]));
+
+  for (const v of values) {
+    try {
+      const fieldId = Number(v.field_id);
+      const field = fieldMap.get(fieldId);
+      if (!field) continue; // ignore fields from other inventories / bad ids
+
+      const payload = {
+        item_id: itemId,
+        field_id: fieldId,
+        value_text: null,
+        value_number: null,
+        value_bool: null,
+        value_link: null,
+      };
+
+      const raw = v.value;
+
+      switch (field.type) {
+        case 'text':
+        case 'multiline':
+          payload.value_text = String(raw ?? '');
+          break;
+        case 'number':
+          if (
+            raw !== '' &&
+            raw !== null &&
+            raw !== undefined &&
+            !isNaN(Number(raw))
+          ) {
+            payload.value_number = Number(raw);
+          }
+          break;
+        case 'link':
+          if (raw) payload.value_link = String(raw);
+          break;
+        case 'boolean':
+          payload.value_bool = !!raw;
+          break;
+        default:
+          // unknown type – just skip to avoid crashing
+          break;
+      }
+
+      // upsert manually: find existing, otherwise create
+      const [row, created] = await ItemFieldValue.findOrCreate({
+        where: { item_id: itemId, field_id: fieldId },
+        defaults: payload,
+        transaction: txn,
+      });
+
+      if (!created) {
+        Object.assign(row, payload);
+        await row.save({ transaction: txn });
+      }
+    } catch (e) {
+      console.error('Error in upsertItemFieldValues for item', itemId, e);
+      throw e; // rethrow so the transaction rolls back cleanly
+    }
+  }
+}
+
+
+
+// GET /api/items/:id/fields
+exports.getItemFields = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const rows = await ItemFieldValue.findAll({
+      where: { item_id: id },
+      include: [{ model: CustomField, attributes: ['id', 'name', 'key', 'type'] }]
+    });
+    res.json(rows);
+  } catch (e) { next(e); }
+};
+
+// PATCH /api/items/:id/fields  body: { values:[{field_id, value}] }
+exports.setItemFields = async (req, res, next) => {
+  try {
+    const itemId = Number(req.params.id);
+    const item = await Item.findByPk(itemId);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    await upsertItemFieldValues(itemId, item.inventory_id, req.body.values || []);
+    const refreshed = await ItemFieldValue.findAll({
+      where: { item_id: itemId },
+      include: [{ model: CustomField, attributes: ['id', 'name', 'key', 'type'] }]
+    });
+    res.json(refreshed);
+  } catch (e) { next(e); }
 };

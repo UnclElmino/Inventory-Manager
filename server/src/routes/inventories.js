@@ -21,5 +21,11 @@ router.get('/:id/writers', requireOwnerOrAdmin, c.getWriters);
 router.post('/:id/writers', requireOwnerOrAdmin, c.addWriter);
 router.delete('/:id/writers/:userId', requireOwnerOrAdmin, c.removeWriter);
 
+// fields CRUD
+router.get('/:id/fields', c.listFields);
+router.post('/:id/fields', requireOwnerOrAdmin, c.createField);
+router.patch('/:id/fields/:fieldId', requireOwnerOrAdmin, c.updateField);
+router.delete('/:id/fields/:fieldId', requireOwnerOrAdmin, c.deleteField);
+
 
 module.exports = router;

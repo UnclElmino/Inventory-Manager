@@ -1,4 +1,4 @@
-const { Inventory, User, Tag, InventoryTag, Item, Like, sequelize, DiscussionPost, InventoryWriter } = require('../../models');
+const { Inventory, User, Tag, InventoryTag, Item, Like, sequelize, DiscussionPost, InventoryWriter, CustomField, ItemFieldValue } = require('../../models');
 const { Op, fn, col, literal } = require('sequelize');
 
 // GET /api/inventories
@@ -330,4 +330,72 @@ exports.removeWriter = async (req, res, next) => {
     });
     res.status(204).end();
   } catch (err) { next(err); }
+};
+
+exports.listFields = async (req, res, next) => {
+  try {
+    const inventoryId = Number(req.params.id);
+    const fields = await CustomField.findAll({
+      where: { inventory_id: inventoryId },
+      order: [['order_index','ASC'], ['id','ASC']]
+    });
+    res.json(fields);
+  } catch (e) { next(e); }
+};
+
+// enforce max 3 per type per inventory
+async function assertTypeLimit(inventory_id, type) {
+  const count = await CustomField.count({ where: { inventory_id, type } });
+  if (count >= 3) {
+    const names = { text:'Single line', multiline:'Multi line', number:'Numeric', link:'Link', boolean:'Boolean' };
+    const label = names[type] || type;
+    const err = new Error(`${label} fields limit reached (max 3)`);
+    err.status = 400;
+    throw err;
+  }
+}
+
+exports.createField = async (req, res, next) => {
+  try {
+    const inventory_id = Number(req.params.id);
+    const { name, type } = req.body;
+    if (!name || !type) return res.status(400).json({ error:'name and type required' });
+
+    await assertTypeLimit(inventory_id, type);
+
+    // simple key: slug from name
+    const key = (name || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+    const highest = await CustomField.max('order_index', { where:{ inventory_id } }) || 0;
+
+    const field = await CustomField.create({
+      inventory_id, name, type, key, order_index: highest + 1
+    });
+
+    res.status(201).json(field);
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error:e.message });
+    next(e);
+  }
+};
+
+exports.updateField = async (req, res, next) => {
+  try {
+    const { id, fieldId } = { id:Number(req.params.id), fieldId:Number(req.params.fieldId) };
+    const f = await CustomField.findOne({ where:{ id:fieldId, inventory_id:id } });
+    if (!f) return res.status(404).json({ error:'Field not found' });
+
+    const { name, order_index } = req.body;
+    if (name !== undefined) f.name = name;
+    if (order_index !== undefined) f.order_index = Number(order_index);
+    await f.save();
+    res.json(f);
+  } catch (e) { next(e); }
+};
+
+exports.deleteField = async (req, res, next) => {
+  try {
+    const { id, fieldId } = { id:Number(req.params.id), fieldId:Number(req.params.fieldId) };
+    await CustomField.destroy({ where:{ id:fieldId, inventory_id:id } });
+    res.status(204).end();
+  } catch (e) { next(e); }
 };

@@ -15,6 +15,7 @@ module.exports = (sequelize, DataTypes) => {
       this.hasMany(models.Item, { foreignKey: 'inventory_id' });
       this.hasMany(models.InventoryField, { foreignKey: 'inventory_id' });
       this.hasMany(models.DiscussionPost, { foreignKey: 'inventory_id' });
+      this.hasMany(models.CustomField, { foreignKey:'inventory_id', as:'fields' });
 
       this.belongsToMany(models.Tag, { through: models.InventoryTag, foreignKey: 'inventory_id' });
 
